@@ -47,7 +47,7 @@ the same minute. One model, no drift.
 pip install -r requirements.txt
 python scripts/run_demo.py   # the seven-act signature demo
 python scripts/eval.py       # naive draft 0/6 vs validated 6/6
-python -m pytest -q          # 41 tests
+python -m pytest -q          # 43 tests
 ```
 
 ## What is real vs simulated
@@ -80,11 +80,13 @@ ontology/business.ttl     Trattoria Luce: menu, allergens, hours, bookings, poli
 src/verba/ontology.py     store, OWL-RL closure, domain rules, write-time consistency
 src/verba/claims.py       typed answer claims
 src/verba/validator.py    supported / contradicted / unsupported verdicts
-src/verba/agent.py        scripted NLU + draft/validate/repair
+src/verba/agent.py        scripted NLU + draft/validate/repair, completeness gate, fallback
+src/verba/state.py        call log, flagged questions (owner handoff)
 src/verba/channels/       voice sim + owner chat sim
 scripts/run_demo.py       seven-act demo (CI-checked)
 scripts/eval.py           naive vs validated battery (CI-checked)
-tests/                    41 tests incl. the incident corpus (test_incidents.py)
+scripts/make_video.py     renders docs/demo.mp4 from real demo output
+tests/                    43 tests incl. the incident corpus (test_incidents.py)
 docs/                     design, requirements, research notes, Pages sim, demo video
 ```
 

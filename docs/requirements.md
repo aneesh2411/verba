@@ -40,10 +40,17 @@
 
 ### Eval and demo
 
-- F17. `scripts/run_demo.py` runs the six-act scenario end to end,
+- F17. `scripts/run_demo.py` runs the seven-act scenario end to end,
   exit code 0, no services or keys.
-- F18. `scripts/eval.py` scores naive draft vs validated answer on 5 probes
-  with known ground truth; fails unless validated is 5/5.
+- F18. `scripts/eval.py` scores naive draft vs validated answer on 6 probes
+  with known ground truth; fails unless validated is 6/6.
+- F20. A booking is only written with party, day/time, a real name
+  (placeholders rejected) and a contact phone; partial details are held
+  across turns.
+- F21. A question with no grounding in the model is flagged for the owner,
+  never improvised; an owner note answers the next caller.
+- F22. Every adopted production failure mode is pinned as a regression
+  test in `tests/test_incidents.py`.
 - F19. A client-side simulation of the demo runs on GitHub Pages for
   reviewers without a Python setup.
 
