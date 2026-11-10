@@ -16,6 +16,9 @@ Dec 20 for brunch. The NEXT caller hears the new hours - one ontology,
 two channels, no drift.
 Act 6 - The owner tries to close Saturday Dec 19, which has a confirmed
 booking. The write is rejected as inconsistent. The booking survives.
+Act 7 - A question the model cannot answer is flagged for the owner
+instead of improvised; the owner teaches the model and the next caller
+gets a real answer.
 """
 import datetime as dt
 import sys
@@ -70,9 +73,13 @@ def main() -> int:
                    summary="cancellation policy question",
                    at=dt.datetime(2026, 11, 10, 19, 18))
 
-    banner("ACT 4 - Booking with cross-check against actual state")
+    banner("ACT 4 - Bookings: completeness gate, then a cross-checked confirm")
+    print("The agent refuses to record a booking without name and phone")
+    print("(a placeholder like 'not provided' is a valid string unless code")
+    print("rejects it - this guardrail lives on the server, not the prompt):")
     voice.run_call("+1-555-0141",
-                   ["Can I book a table for 2 on Saturday Dec 19 at 7:30pm?"],
+                   ["Can I book a table for 2 on Saturday Dec 19 at 7:30pm?",
+                    "Name's Chen, phone 555-0141"],
                    summary="booking request",
                    at=dt.datetime(2026, 11, 10, 19, 24))
     print()
@@ -98,7 +105,24 @@ def main() -> int:
     for b in store.confirmed_bookings(dt.date(2026, 12, 19)):
         print(f"    {b['id']:12s} {b['date']} {b['start']} party of {b['party']} ({b['name']})")
 
-    banner("DONE - validator blocked 3 naive answers; 1 owner write rejected")
+    banner("ACT 7 - Unknown question: flagged for the owner, then taught")
+    print("A caller asks something the model does not know. Instead of")
+    print("improvising, the agent flags it. The owner sees the flag, teaches")
+    print("the model, and the next caller gets a real answer:")
+    voice.run_call("+1-555-0159", ["Do you host wine tastings?"],
+                   summary="wine tasting question (flagged)",
+                   at=dt.datetime(2026, 11, 10, 19, 52))
+    print()
+    owner.handle("What calls did I miss today?")
+    print()
+    owner.handle("note: wine tastings every first Thursday, $40 a head")
+    print()
+    voice.run_call("+1-555-0171", ["Do you host wine tastings?"],
+                   summary="wine tasting question (answered)",
+                   at=dt.datetime(2026, 11, 10, 20, 5))
+
+    banner("DONE - validator blocked 4 naive answers; 1 owner write rejected; "
+           "1 question flagged and taught")
     return 0
 
 

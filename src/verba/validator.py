@@ -51,6 +51,18 @@ class ValidationResult:
         return [v for v in self.verdicts if not v.speakable]
 
 
+def refusal_line(result: ValidationResult) -> str:
+    """One caller-speakable sentence explaining a refusal.
+
+    Production lesson (see docs/research-notes.md): a guardrail that refuses
+    must hand back a reason the agent can say out loud, otherwise the model
+    improvises one. Every blocked verdict already names the exact model facts
+    responsible; this joins them into a single honest sentence.
+    """
+    reasons = [r for v in result.blocked for r in v.reasons]
+    return "; ".join(reasons)
+
+
 class Validator:
     def __init__(self, store: OntologyStore):
         self.store = store
@@ -147,6 +159,13 @@ class Validator:
         if not (info["start"] <= start < info["end"]):
             return Verdict(claim, CONTRADICTED,
                            [f"{start} is outside opening hours {info['start']}-{info['end']}"])
+        end = f"{int(start[:2]) + 2:02d}:{start[3:]}"
+        for b in self.store.confirmed_bookings(date):
+            if "private event" in b["name"].lower()                     and start < b["end"] and end > b["start"]:
+                return Verdict(claim, CONTRADICTED,
+                               [f"the venue is held by a private event "
+                                f"('{b['name']}', {b['start']}-{b['end']}) - "
+                                f"the model says no regular tables exist then"])
         covers = sum(b["party"] for b in self.store.confirmed_bookings(date)
                      if b["start"][:2] == start[:2])
         if covers + party > cap["max_covers"]:

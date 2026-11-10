@@ -36,14 +36,14 @@ def test_cancellation_policy(agent):
 
 
 def test_booking_flow_speaks_only_after_state_write(agent):
-    reply = agent.answer_caller("Can I book a table for 2 on Saturday Dec 19 at 7:30pm?")
+    reply = agent.answer_caller("Can I book a table for 2 on Saturday Dec 19 at 7:30pm? Name's Chen, phone 555-0141")
     assert "You're all set" in reply.text
     bookings = agent.store.confirmed_bookings(dt.date(2026, 12, 19))
     assert any(b["start"] == "19:30" and b["party"] == 2 for b in bookings)
 
 
 def test_booking_refused_when_closed(agent):
-    reply = agent.answer_caller("Can I book a table for 2 on Sunday Dec 20 at 7pm?")
+    reply = agent.answer_caller("Can I book a table for 2 on Sunday Dec 20 at 7pm? Name's Rao, phone 555-0100")
     assert "can't book" in reply.text
     assert not any(b["date"] == dt.date(2026, 12, 20)
                    for b in agent.store.confirmed_bookings())
