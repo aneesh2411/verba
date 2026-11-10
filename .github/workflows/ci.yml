@@ -23,6 +23,6 @@ jobs:
       - name: Run signature demo (must exit 0)
         if: ${{ hashFiles('scripts/run_demo.py') != '' }}
         run: python scripts/run_demo.py > /dev/null
-      - name: Run eval battery (validated must score 5/5)
+      - name: Run eval battery (validated must score 6/6)
         if: ${{ hashFiles('scripts/eval.py') != '' }}
         run: python scripts/eval.py
