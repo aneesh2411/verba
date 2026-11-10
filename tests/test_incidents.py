@@ -78,3 +78,27 @@ def test_owner_note_teaches_flagged_question(agent):
 def test_cancelling_unknown_booking_is_refused(agent):
     reply = agent.answer_caller("Cancel my booking b9999")
     assert "couldn't find" in reply.text.lower()
+
+def test_over_capacity_party_refused_end_to_end(agent):
+    # Complete details, but the restaurant seats at most 12: the refusal
+    # must come from the capacity rule with a speakable reason, and no
+    # state may be written.
+    reply = agent.answer_caller(
+        "Book a table for 20 on Saturday Dec 19 at 7:30pm? Name's Chen, "
+        "phone 555-0141")
+    assert "You're all set" not in reply.text
+    assert "exceeds max party size 12" in reply.text
+    assert not any(b["party"] == 20
+                   for b in agent.store.confirmed_bookings(dt.date(2026, 12, 19)))
+
+
+def test_placeholder_name_does_not_poison_pending_slots(agent):
+    agent.answer_caller(
+        "Book a table for 2 on Saturday Dec 19 at 8pm, name is not provided")
+    second = agent.answer_caller("phone 555-0188")
+    assert "You're all set" not in second.text        # name still missing
+    assert "name" in second.text.lower()
+    third = agent.answer_caller("Name's Chen")
+    assert "You're all set" in third.text             # real name completes it
+    bookings = agent.store.confirmed_bookings(dt.date(2026, 12, 19))
+    assert any(b["start"] == "20:00" and "Chen" in b["name"] for b in bookings)
