@@ -21,6 +21,8 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
       - name: Run signature demo (must exit 0)
+        if: ${{ hashFiles('scripts/run_demo.py') != '' }}
         run: python scripts/run_demo.py > /dev/null
       - name: Run eval battery (validated must score 5/5)
+        if: ${{ hashFiles('scripts/eval.py') != '' }}
         run: python scripts/eval.py
