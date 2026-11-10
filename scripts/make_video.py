@@ -135,7 +135,7 @@ def main():
     # end card
     end_start = fidx
     idx_end = title_card(lambda i: str(FRAMES / f"end_{i:05d}.png"), [
-        ("naive draft 0/5  -  validated answer 5/5", C_NAIVE, FONT),
+        ("naive draft 0/6  -  validated answer 6/6", C_NAIVE, FONT),
         ("github.com/aneesh2411/verba", C_CALLER, FONT),
         ("aneesh2411.github.io/verba", C_CALLER, FONT),
     ], 2.6)
