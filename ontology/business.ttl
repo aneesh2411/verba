@@ -1,0 +1,159 @@
+# Verba sample business model: "Trattoria Luce" (fictional restaurant)
+# This file is the single source of truth for BOTH channels (voice + owner chat).
+@prefix : <https://verba.dev/ontology#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# T-Box (schema)
+# ============================================================
+
+:Business        a owl:Class.
+:MenuItem        a owl:Class.
+:Ingredient      a owl:Class.
+
+# Allergen / dietary hierarchy. RDFS subclass inference turns
+# "pine nuts" into "tree nut" into "nut" into "allergen" for free.
+:Allergen        a owl:Class.
+:Nut             a owl:Class ; rdfs:subClassOf :Allergen .
+:TreeNut         a owl:Class ; rdfs:subClassOf :Nut .
+:Peanut          a owl:Class ; rdfs:subClassOf :Nut .
+:PineNut         a owl:Class ; rdfs:subClassOf :TreeNut .
+:Dairy           a owl:Class ; rdfs:subClassOf :Allergen .
+:Gluten          a owl:Class ; rdfs:subClassOf :Allergen .
+:Egg             a owl:Class ; rdfs:subClassOf :Allergen .
+
+# Dietary classification (not allergens, but the same reasoning pattern).
+:AnimalProduct   a owl:Class.
+:Meat            a owl:Class ; rdfs:subClassOf :AnimalProduct .
+:Fish            a owl:Class ; rdfs:subClassOf :AnimalProduct .
+# Dairy and Egg are animal products as well as allergens.
+:Dairy           rdfs:subClassOf :AnimalProduct .
+:Egg             rdfs:subClassOf :AnimalProduct .
+
+# Hours model.
+:Hours           a owl:Class.
+:RegularHours    a owl:Class ; rdfs:subClassOf :Hours .  # recurring weekly
+:HoursOverride   a owl:Class ; rdfs:subClassOf :Hours .  # one-off special opening
+:OpenInterval    a owl:Class ; rdfs:subClassOf :Hours .  # inferred, never asserted by hand
+:ClosureNotice   a owl:Class.                            # one-off closure of a date
+
+# Bookings.
+:Booking          a owl:Class.
+:ConfirmedBooking a owl:Class ; rdfs:subClassOf :Booking .
+:CancelledBooking a owl:Class ; rdfs:subClassOf :Booking .
+:CancelledBooking owl:disjointWith :ConfirmedBooking .
+
+# Policies and notes.
+:Policy             a owl:Class.
+:CancellationPolicy a owl:Class ; rdfs:subClassOf :Policy .
+:Note               a owl:Class.
+
+# Properties.
+:contains       a owl:ObjectProperty ; rdfs:domain :MenuItem ; rdfs:range :Ingredient .
+:hasAllergen    a owl:ObjectProperty .  # inferred only
+:openWeekday    a owl:DatatypeProperty .  # "monday".."sunday"
+:onDate         a owl:DatatypeProperty .  # xsd:date
+:opensAt        a owl:DatatypeProperty .  # "HH:MM" 24h
+:closesAt       a owl:DatatypeProperty .
+:partySize      a owl:DatatypeProperty .
+:bookingName    a owl:DatatypeProperty .
+:freeCancellationHours a owl:DatatypeProperty .
+:lateCancellationFee   a owl:DatatypeProperty .
+:text           a owl:DatatypeProperty .
+:price          a owl:DatatypeProperty .
+:maxPartySize   a owl:DatatypeProperty .
+:maxCoversPerSlot a owl:DatatypeProperty .
+:derivedFrom    a owl:ObjectProperty .  # provenance for inferred openings
+
+# ============================================================
+# A-Box (Trattoria Luce)
+# ============================================================
+
+:luce a :Business ;
+    :name "Trattoria Luce" ;
+    :maxPartySize 12 ;
+    :maxCoversPerSlot 40 .
+
+# ---- Regular weekly hours: open Mon-Sat 11:00-22:00.
+#      NO :RegularHours for sunday. A naive bot concludes
+#      "closed Sundays". The ontology knows better (see :booking_b7).
+:hours_mon a :RegularHours ; :openWeekday "monday"    ; :opensAt "11:00" ; :closesAt "22:00" .
+:hours_tue a :RegularHours ; :openWeekday "tuesday"   ; :opensAt "11:00" ; :closesAt "22:00" .
+:hours_wed a :RegularHours ; :openWeekday "wednesday" ; :opensAt "11:00" ; :closesAt "22:00" .
+:hours_thu a :RegularHours ; :openWeekday "thursday"  ; :opensAt "11:00" ; :closesAt "22:00" .
+:hours_fri a :RegularHours ; :openWeekday "friday"    ; :opensAt "11:00" ; :closesAt "22:00" .
+:hours_sat a :RegularHours ; :openWeekday "saturday"  ; :opensAt "11:00" ; :closesAt "22:00" .
+
+# ---- Bookings state (the "calendar" the voice channel cross-checks).
+#      Sunday 2026-12-13: a confirmed private event. This single fact is
+#      what makes the universal claim "closed on Sundays" FALSE, and it is
+#      the signature contradiction the validator catches.
+:booking_b7 a :ConfirmedBooking ;
+    :bookingName "Rao holiday party (private event)" ;
+    :onDate "2026-12-13"^^xsd:date ;
+    :opensAt "18:00" ;
+    :closesAt "23:00" ;
+    :partySize 40 .
+
+#      Saturday 2026-12-19, 19:00 - an ordinary confirmed booking.
+#      An owner instruction "close Dec 19" must be REJECTED while this stands.
+:booking_b3 a :ConfirmedBooking ;
+    :bookingName "Mehta" ;
+    :onDate "2026-12-19"^^xsd:date ;
+    :opensAt "19:00" ;
+    :closesAt "21:00" ;
+    :partySize 4 .
+
+# ---- Menu.
+:margherita_pizza a :MenuItem ;
+    :name "Margherita Pizza" ;
+    :price "14.00"^^xsd:decimal ;
+    :contains :wheat_flour, :mozzarella, :tomato_sauce, :basil, :olive_oil .
+
+:pesto_pasta a :MenuItem ;
+    :name "Basil Pesto Pasta" ;
+    :price "16.50"^^xsd:decimal ;
+    :contains :pasta, :pine_nuts, :parmesan, :basil, :olive_oil .
+
+:grilled_salmon a :MenuItem ;
+    :name "Grilled Salmon" ;
+    :price "21.00"^^xsd:decimal ;
+    :contains :salmon_fillet, :olive_oil, :lemon .
+
+:house_salad a :MenuItem ;
+    :name "House Salad" ;
+    :price "9.50"^^xsd:decimal ;
+    :contains :mixed_greens, :tomato, :olive_oil, :lemon .
+
+:tiramisu a :MenuItem ;
+    :name "Tiramisu" ;
+    :price "8.00"^^xsd:decimal ;
+    :contains :eggs, :mascarpone, :ladyfingers, :espresso .
+
+# ---- Ingredients, typed by allergen / dietary classes.
+:wheat_flour   a :Ingredient, :Gluten .
+:pasta         a :Ingredient, :Gluten .
+:ladyfingers   a :Ingredient, :Gluten .
+:mozzarella    a :Ingredient, :Dairy .
+:parmesan      a :Ingredient, :Dairy .
+:mascarpone    a :Ingredient, :Dairy .
+:eggs          a :Ingredient, :Egg .
+:pine_nuts     a :Ingredient, :PineNut .
+:salmon_fillet a :Ingredient, :Fish .
+:tomato_sauce  a :Ingredient .
+:tomato        a :Ingredient .
+:basil         a :Ingredient .
+:olive_oil     a :Ingredient .
+:lemon         a :Ingredient .
+:mixed_greens  a :Ingredient .
+:espresso      a :Ingredient .
+
+# ---- Policies.
+:cancel_policy a :CancellationPolicy ;
+    :freeCancellationHours 24 ;
+    :lateCancellationFee "25.00"^^xsd:decimal .
+
+:note_general a :Note ;
+    :text "Street parking on Elm Street; the lot behind the building is free after 6pm." .
