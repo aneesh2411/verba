@@ -23,12 +23,17 @@ class VoiceChannel:
         for line in script:
             turns.append(Turn("caller", line))
             reply = self.agent.answer_caller(line)
-            turns.append(Turn("agent", reply.text, blocked=reply.blocked))
+            if reply.flagged:
+                self.log.flag(reply.flagged, caller, at=at)
+            turns.append(Turn("agent", reply.text, blocked=reply.blocked,
+                              naive_blocked=reply.naive_draft is not None))
         self.log.add(caller, "answered", summary or script[0][:60], at=at)
         if verbose:
             for turn in turns:
                 prefix = "CALLER" if turn.speaker == "caller" else "AGENT "
                 print(f"  {prefix}  {turn.text}")
                 for reason in turn.blocked:
-                    print(f"         [validator blocked naive answer: {reason}]")
+                    label = ("validator blocked naive answer"
+                             if turn.naive_blocked else "guardrail")
+                    print(f"         [{label}: {reason}]")
         return turns
