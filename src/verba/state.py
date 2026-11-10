@@ -11,6 +11,19 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class FlaggedQuestion:
+    """A caller question the agent could not answer from the model.
+
+    Instead of improvising, the agent flags it; the owner sees it in the
+    daily summary and can teach the agent with a 'note: ...' message.
+    (Pattern: "a rejected action with no visible trail is its own outage.")
+    """
+    question: str
+    caller: str
+    flagged_at: dt.datetime
+
+
+@dataclass
 class CallRecord:
     caller: str
     started_at: dt.datetime
@@ -21,6 +34,14 @@ class CallRecord:
 @dataclass
 class CallLog:
     records: list[CallRecord] = field(default_factory=list)
+    flags: list[FlaggedQuestion] = field(default_factory=list)
+
+    def flag(self, question: str, caller: str,
+             at: dt.datetime | None = None) -> FlaggedQuestion:
+        fq = FlaggedQuestion(question=question, caller=caller,
+                             flagged_at=at or dt.datetime.now())
+        self.flags.append(fq)
+        return fq
 
     def add(self, caller: str, status: str, summary: str,
             at: dt.datetime | None = None) -> CallRecord:
@@ -40,4 +61,9 @@ class CallLog:
         for r in day:
             mark = "MISSED" if r.status == "missed" else "answered"
             lines.append(f"  {r.started_at.strftime('%H:%M')} {mark:8s} {r.caller} - {r.summary}")
+        open_flags = [f for f in self.flags if f.flagged_at.date() == on]
+        if open_flags:
+            lines.append(f"Flagged questions needing your answer ({len(open_flags)}):")
+            for f in open_flags:
+                lines.append(f"  {f.flagged_at.strftime('%H:%M')} {f.caller} asked: \"{f.question}\"")
         return "\n".join(lines)
