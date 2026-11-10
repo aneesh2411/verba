@@ -109,12 +109,12 @@ the ontology earns its keep.
 
 ### 5. Eval (`scripts/run_demo.py`, `scripts/eval.py`)
 
-- `run_demo.py` - six-act reproducible scenario ending in the signature
-  contradiction catch, a live cross-channel update, and a rejected
-  inconsistent owner write.
-- `eval.py` - five probes with known ground truth; scores the naive draft
-  vs the validated answer. Current result: **naive 0/5, validated 5/5**.
-  CI fails if validated drops below 5/5.
+- `run_demo.py` - seven-act reproducible scenario ending in the signature
+  contradiction catch, a live cross-channel update, a rejected
+  inconsistent owner write, and the flag-and-teach fallback loop.
+- `eval.py` - six probes with known ground truth; scores the naive draft
+  vs the validated answer. Current result: **naive 0/6, validated 6/6**.
+  CI fails if validated drops below 6/6.
 
 ## Production path (not built here)
 
