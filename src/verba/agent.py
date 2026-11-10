@@ -23,6 +23,7 @@ class Turn:
     speaker: str           # "caller" | "owner" | "agent"
     text: str
     blocked: list[str] = field(default_factory=list)
+    naive_blocked: bool = False   # True when the block caught a naive draft
 
 
 @dataclass
@@ -31,6 +32,8 @@ class Reply:
     claims: list = field(default_factory=list)
     blocked: list[str] = field(default_factory=list)
     naive_draft: str | None = None     # what a plain RAG bot would have said
+    flagged: str | None = None         # question the agent could not answer; the
+                                       # channel flags it for the owner (no improv)
 
 
 WEEKDAY_ALIASES = {w: w for w in WEEKDAYS} | {
@@ -104,6 +107,7 @@ class VerbaAgent:
         self.store = store
         self.validator = Validator(store)
         self.today = today or dt.date.today()
+        self._pending: dict = {}   # partial booking slots held across turns
 
     # ---------------------------------------------------------- answering
     def answer_caller(self, utterance: str) -> Reply:
@@ -113,7 +117,7 @@ class VerbaAgent:
             return self._cancellation_policy(t)
         if re.search(r"\bcancel\b", t) and re.search(r"\b(booking|table|reservation)\b", t):
             return self._cancel_booking(t)
-        if re.search(r"\b(book|reserve|table for|reservation)\b", t):
+        if re.search(r"\b(book|reserve|table for|reservation)\b", t) or self._pending:
             return self._make_booking(t)
         if re.search(r"\b(vegan|vegetarian)\b", t):
             return self._diet(t)
@@ -126,8 +130,34 @@ class VerbaAgent:
             return self._parking()
         if re.search(r"\b(open|close|hours)\b", t):
             return self._hours(t)
-        return Reply(text=("I'm sorry, I didn't catch that. You can ask me about our "
-                           "hours, menu, allergens, or bookings."))
+        return self._fallback(utterance)
+
+    # ---------------------------------------------------------- fallback
+    #: words too common to evidence that a note answers a question
+    _STOPWORDS = {"what", "when", "where", "which", "does", "do", "you", "your",
+                  "have", "are", "the", "and", "for", "with", "any", "can",
+                  "about", "there", "this", "that", "will", "from", "they",
+                  "them", "how", "much", "many", "offer", "tell"}
+
+    def _fallback(self, utterance: str) -> Reply:
+        """Never improvise. If the owner has left a note that answers the
+        question, speak the note. Otherwise flag the question for the owner
+        and say so honestly (pattern: better to hand off than hallucinate)."""
+        words = {w.strip("?.,!'\"") for w in utterance.lower().split()}
+        keywords = {w for w in words if len(w) > 3 and w not in self._STOPWORDS}
+        for note in self.store.notes():
+            note_words = set(note.lower().split())
+            if keywords and keywords & note_words:
+                return Reply(text=f"Here's what the owner has noted: {note}")
+        return Reply(text=("I don't have that information yet, I'm afraid - "
+                           "I've flagged your question for the owner, and once "
+                           "they answer it I'll know too. Is there anything "
+                           "else I can help with?"),
+                     naive_draft=("Yes, absolutely - we'd be happy to help "
+                                  "with that!"),
+                     blocked=["no grounding in the model; a retrieve-and-"
+                              "paraphrase bot would improvise an answer here"],
+                     flagged=utterance)
 
     # ---------------------------------------------------------- handlers
     def _hours(self, t: str) -> Reply:
@@ -240,13 +270,45 @@ class VerbaAgent:
                     f"Cancelling {int(hours_before)} hours before carries a ${pol['late_fee']} fee.")
         return Reply(text=repaired, claims=[claim], blocked=reasons, naive_draft=naive)
 
+    #: placeholders a caller (or a model) must not book under - the server,
+    #: not the prompt, refuses them (production lesson: "not provided" is a
+    #: perfectly valid non-empty string unless code rejects it)
+    _PLACEHOLDERS = {"not provided", "unknown", "tbd", "n/a", "none", "anon",
+                     "anonymous", "guest", "no name", "whatever"}
+
     def _make_booking(self, t: str) -> Reply:
         m = re.search(r"(?:table for|party of)\s+(\d+)", t)
-        party = int(m.group(1)) if m else 2
+        party = int(m.group(1)) if m else None
         date = parse_date(t, self.today)
         start = parse_time(t)
-        if date is None or start is None:
-            return Reply(text="Happy to book that - which day and time did you have in mind?")
+        name_m = re.search(r"(?:under(?: the name)?|name(?:'s| is))\s+([a-z]+(?:\s+[a-z]+)?)", t)
+        name = name_m.group(1) if name_m else None
+        phone_m = re.search(r"\b(\d{3}[-. ]?\d{3,4}(?:[-. ]?\d{3,4})?)\b", t)
+        phone = phone_m.group(1) if phone_m else None
+
+        slots = {"party": party, "date": date, "start": start,
+                 "name": name, "phone": phone}
+        self._pending.update({k: v for k, v in slots.items() if v is not None})
+        slots = self._pending
+
+        missing = []
+        if slots.get("party") is None:
+            missing.append("the party size")
+        if slots.get("date") is None or slots.get("start") is None:
+            missing.append("the day and time")
+        if not slots.get("name") or slots["name"].lower() in self._PLACEHOLDERS:
+            missing.append("a name for the booking")
+        if not slots.get("phone"):
+            missing.append("a contact phone number")
+        if missing:
+            listing = (", ".join(missing[:-1]) + " and " + missing[-1]) \
+                if len(missing) > 1 else missing[0]
+            return Reply(text=(f"Happy to take that booking - I just need {listing} "
+                               "before I can confirm it."),
+                         blocked=[f"completeness gate: missing {m}" for m in missing])
+        party, date, start = slots["party"], slots["date"], slots["start"]
+        name, phone = slots["name"], slots["phone"]
+        self._pending = {}
         claim = C.available(date, start, party)
         result = self.validator.validate([claim])
         if not result.allowed:
@@ -255,11 +317,13 @@ class VerbaAgent:
             suggestion = (f" We're open {info['start']}-{info['end']} that day."
                           if info and info["open"] else "")
             return Reply(text=(f"I'm sorry, I can't book a party of {party} on "
-                               f"{date.strftime('%A, %B %-d')} at {start}."
+                               f"{date.strftime('%A, %B %-d')} at {start}: "
+                               f"{'; '.join(reasons)}."
                                f"{suggestion}"), claims=[claim], blocked=reasons)
         # State write first, THEN speak the confirmation, validated against state.
         end = f"{int(start[:2]) + 2:02d}:{start[3:]}"
-        booking_id = self.store.add_booking("phone guest", date, start, end, party)
+        booking_id = self.store.add_booking(f"{name.capitalize()} {phone}",
+                                            date, start, end, party)
         confirm = C.booking_confirmed(date, start, party)
         check = self.validator.validate([confirm])
         if not check.allowed:  # defensive: never tell the caller a booking we don't hold
