@@ -55,8 +55,8 @@ the LLM are simulated; the ontology, validation and cross-channel logic are real
   </div>
   <div id="log"></div>
 </main>
-<footer>Eval on 5 probes with known ground truth: naive draft 0/5 correct,
-validated answer 5/5 correct (scripts/eval.py, enforced in CI).</footer>
+<footer>Eval on 6 probes with known ground truth: naive draft 0/6 correct,
+validated answer 6/6 correct (scripts/eval.py, enforced in CI).</footer>
 <script>
 const SCENES = [
  {act:"ACT 1 - 'Closed on Sundays' vs a confirmed Sunday booking", lines:[
@@ -75,9 +75,12 @@ const SCENES = [
   ["naive","naive draft: \"Yes, you can cancel free of charge 2 hours before.\""],
   ["blocked","VALIDATOR BLOCKED: policy allows free cancellation only >= 24h before; inside that, fee $25.00."],
   ["agent","No - free cancellation ends 24 hours before the booking. Cancelling 2 hours before carries a $25.00 fee."]]},
- {act:"ACT 4 - Booking with cross-check against actual state", lines:[
+ {act:"ACT 4 - Bookings: completeness gate, then a cross-checked confirm", lines:[
   ["caller","Can I book a table for 2 on Saturday Dec 19 at 7:30pm?"],
-  ["note","availability claim checked against hours + capacity + existing bookings; booking written to state; the confirmation claim is then validated against that state - the agent can only SAY a booking that exists."],
+  ["blocked","GUARDRAIL (completeness gate, in code not the prompt): a booking needs party size, day/time, a real name and a contact phone - 'not provided' is a valid string unless the server rejects it."],
+  ["agent","Happy to take that booking - I just need a name for the booking and a contact phone number before I can confirm it."],
+  ["caller","Name's Chen, phone 555-0141"],
+  ["note","availability checked against hours + existing bookings (incl. private events); booking written to state; the confirmation claim is then validated against that state - the agent can only SAY a booking that exists."],
   ["agent","You're all set - a table for 2 on Saturday, December 19 at 19:30. Booking reference booking_3."]]},
  {act:"ACT 5 - Owner chat: missed calls, then a live update to the SAME model", lines:[
   ["owner","What calls did I miss today?"],
@@ -91,6 +94,17 @@ const SCENES = [
   ["owner","We're closed Saturday Dec 19"],
   ["blocked","WRITE REJECTED (consistency): ClosureNotice on 2026-12-19 conflicts with confirmed booking 'Mehta' on the same date."],
   ["agent","I can't do that: a confirmed booking exists on Dec 19. The model stays true; the booking survives."]]},
+ {act:"ACT 7 - Unknown question: flagged for the owner, then taught", lines:[
+  ["caller","Do you host wine tastings?"],
+  ["naive","naive draft (plain RAG): \"Yes, absolutely - we'd be happy to help with that!\" - a sycophantic improvisation with no grounding in the model."],
+  ["blocked","VALIDATOR: no grounding in the model. Better to hand off than hallucinate - the question is flagged, not answered."],
+  ["agent","I don't have that information yet, I'm afraid - I've flagged your question for the owner, and once they answer it I'll know too."],
+  ["owner","What calls did I miss today?"],
+  ["agent","... Flagged questions needing your answer (1): 19:52 +1-555-0159 asked: \"Do you host wine tastings?\""],
+  ["owner","note: wine tastings every first Thursday, $40 a head"],
+  ["agent","Noted - the phone agent will use that from now on."],
+  ["caller","Do you host wine tastings?"],
+  ["agent","Here's what the owner has noted: wine tastings every first thursday, $40 a head"]]},
 ];
 const LABELS = {caller:"CALLER", agent:"VERBA", owner:"OWNER"};
 const log = document.getElementById('log');
