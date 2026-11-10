@@ -47,7 +47,7 @@ def classify(line: str):
         return C_AGENT, False
     if s.startswith("OWNER"):
         return C_OWNER, False
-    if "[validator blocked" in s:
+    if "[validator blocked" in s or "[guardrail:" in s:
         return C_BLOCK, False
     if s.startswith(("Model facts", "(Rao", "hours", "Same minute", "The Dec 19")):
         return C_NAIVE, False
