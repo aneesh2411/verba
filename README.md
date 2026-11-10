@@ -45,9 +45,9 @@ the same minute. One model, no drift.
 
 ```bash
 pip install -r requirements.txt
-python scripts/run_demo.py   # the six-act signature demo
-python scripts/eval.py       # naive draft 0/5 vs validated 5/5
-python -m pytest -q          # 34 tests
+python scripts/run_demo.py   # the seven-act signature demo
+python scripts/eval.py       # naive draft 0/6 vs validated 6/6
+python -m pytest -q          # 41 tests
 ```
 
 ## What is real vs simulated
@@ -60,6 +60,9 @@ python -m pytest -q          # 34 tests
 | Booking cross-check (speak only what state holds) | GitHub Pages demo is a scripted replay of the Python transcript |
 | Write-time consistency with rollback | |
 | Cross-channel propagation through one store | |
+| Booking completeness gate (name + phone required, placeholders rejected) | |
+| Private-event double-booking refusal | |
+| Unknown questions flagged for the owner, never improvised | |
 
 ## What an ontology adds over schema/RAG
 
@@ -79,11 +82,33 @@ src/verba/claims.py       typed answer claims
 src/verba/validator.py    supported / contradicted / unsupported verdicts
 src/verba/agent.py        scripted NLU + draft/validate/repair
 src/verba/channels/       voice sim + owner chat sim
-scripts/run_demo.py       six-act demo (CI-checked)
+scripts/run_demo.py       seven-act demo (CI-checked)
 scripts/eval.py           naive vs validated battery (CI-checked)
-tests/                    34 tests
-docs/                     design, requirements, Pages sim, demo video
+tests/                    41 tests incl. the incident corpus (test_incidents.py)
+docs/                     design, requirements, research notes, Pages sim, demo video
 ```
+
+## Reliability pack (post-research hardening)
+
+After the core build we reviewed practitioner postmortems from production
+voice agents and recent hackathon projects, and adopted the failure-mode
+fixes that fit this architecture:
+
+- **Completeness gate for bookings** - party, day/time, a real name and a
+  contact phone are required; "not provided" is rejected in server code,
+  and partial details are held across turns instead of half-booking.
+- **Speakable refusal reasons** - refusals carry the reason
+  ("18:00 is outside opening hours 19:00-21:00"), not a bare "no".
+- **Private-event conflict check** - a slot overlapping a confirmed
+  private event is refused even when the venue is otherwise open.
+- **Hand-off over hallucinate** - a question with no grounding in the
+  model is flagged for the owner (visible in the missed-calls summary),
+  and the owner's note answers the next caller. Demo Act 7.
+- **Incident-corpus regression tests** - every adopted failure mode is a
+  permanent test in `tests/test_incidents.py`.
+
+Sources and the reasoning for each adoption (and what we deliberately did
+not adopt) are in [docs/research-notes.md](docs/research-notes.md).
 
 ## Next steps (documented, not built)
 

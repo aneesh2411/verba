@@ -134,3 +134,60 @@ the ontology earns its keep.
   of a booking is not detected).
 - The Pages demo (`docs/index.html`) is a client-side *simulation* of the
   Python prototype's transcript, for reviewers without a Python setup.
+
+## Addendum: reliability gates (Nov 2026, post-research)
+
+Production postmortems (see docs/research-notes.md) converge on one
+principle that fits Verba's design: behavioral rules belong in server
+code, not prompts. The additions below extend the validator/agent model
+in that direction.
+
+### Booking completeness gate (agent layer)
+
+A booking is a state write, so it is gated like one: party size, day/time,
+a name and a contact phone are all required before `_make_booking` may
+touch the store. A placeholder ("not provided", "unknown", "n/a", ...)
+fails the name check - a string being syntactically valid says nothing
+about its content, which is exactly the validator's thesis applied to
+slots. Partial slots are kept in `_pending` across turns, so "Name's
+Chen, phone 555-0141" completes the earlier request instead of starting
+over. The refusal speaks the missing items.
+
+### Speakable refusal reasons
+
+The validator already returned structured blocked-reason strings for
+contradicted claims; `refusal_line()` now joins them into one sentence
+the agent can say, so a refusal is never a bare "can't do that" when the
+model knows why.
+
+### Private-event conflict
+
+`_check_available` refuses any requested slot overlapping a confirmed
+booking whose label marks a private event (e.g. the Rao holiday party,
+Sun Dec 13 18:30-23:00). Without this, "open with a special opening"
+would read as "bookable", double-booking a buyout.
+
+### Honest fallback with owner handoff
+
+`answer_caller` ends at `_fallback`: consult owner notes by keyword
+overlap; if nothing matches, reply honestly, set `Reply.flagged`, and the
+voice channel records a `FlaggedQuestion` (question, caller, timestamp)
+in the call log. The owner's missed-calls summary surfaces flags, and a
+`note:` teaches the model. The loop closes in demo Act 7 and is pinned by
+`test_unknown_question_is_flagged_not_improvised` and
+`test_owner_note_teaches_flagged_question`.
+
+### Incident corpus
+
+`tests/test_incidents.py` encodes every adopted production failure mode
+as a regression test with turn-level assertions. CI runs it with the rest
+of the suite; a guardrail that regresses turns the build red.
+
+### Known limits added by this pack
+
+- Name extraction is a small regex over one or two lowercase words; a
+  caller spelling a name letter-by-letter would not parse.
+- Keyword overlap for owner notes is literal words, not embeddings; a
+  paraphrase with no shared word still flags.
+- Pending bookings live in agent memory, not the store; a new process
+  forgets them (fine for the demo's call-scoped lifetime).
