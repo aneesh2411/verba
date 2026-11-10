@@ -30,6 +30,8 @@ PROBES = [
      "closed on Sundays", "open on Sunday, December 13"),
     ("Is the pesto pasta gluten-free?",
      "is gluten-free", "contains"),
+    ("Do you host wine tastings?",
+     "absolutely", "flagged your question"),
 ]
 
 
