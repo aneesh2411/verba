@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verba - ontology-grounded voice agent (browser simulation)</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#e6edf3;
+          --dim:#8b949e; --caller:#79c0ff; --agent:#56d364; --owner:#d2a8ff;
+          --block:#f85149; --naive:#e3b341; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:15px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding:28px 20px 14px; max-width:860px; margin:0 auto; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  h1 .v { color:var(--agent); }
+  .sub { color:var(--dim); max-width:640px; }
+  .banner { max-width:860px; margin:12px auto 0; padding:0 20px;
+            color:var(--naive); font-size:13px; }
+  main { max-width:860px; margin:18px auto 60px; padding:0 20px; }
+  .controls { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
+           border-radius:8px; padding:9px 14px; font-size:14px; cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--agent); }
+  button:disabled { opacity:.4; cursor:default; }
+  #log { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+         padding:18px; min-height:420px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+         font-size:13.5px; white-space:pre-wrap; }
+  .act { color:var(--dim); border-bottom:1px solid var(--line); padding:10px 0 6px;
+         margin-bottom:8px; font-weight:600; }
+  .caller { color:var(--caller); } .agent { color:var(--agent); } .owner { color:var(--owner); }
+  .blocked { color:var(--block); } .naive { color:var(--naive); }
+  .note { color:var(--dim); font-style:italic; }
+  a { color:var(--caller); }
+  footer { max-width:860px; margin:0 auto 40px; padding:0 20px; color:var(--dim); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="v">Verba</span> - a voice agent that is not allowed to lie</h1>
+  <div class="sub">Every answer is validated against a formal business ontology before
+  it is spoken. One ontology, two channels: the phone line and the owner's chat.
+  Sample business: Trattoria Luce (open Mon-Sat 11:00-22:00, with a confirmed
+  private-event booking on Sunday Dec 13).</div>
+</header>
+<div class="banner">This page is a scripted browser replay of the Python prototype's real
+output (<a href="https://github.com/aneesh2411/verba/blob/main/docs/demo.mp4">video</a> |
+<a href="https://github.com/aneesh2411/verba">repo</a>). Telephony, WhatsApp transport and
+the LLM are simulated; the ontology, validation and cross-channel logic are real code in the repo.</div>
+<main>
+  <div class="controls">
+    <button id="next">Play next scene</button>
+    <button id="all">Play all</button>
+    <button id="reset">Reset</button>
+  </div>
+  <div id="log"></div>
+</main>
+<footer>Eval on 5 probes with known ground truth: naive draft 0/5 correct,
+validated answer 5/5 correct (scripts/eval.py, enforced in CI).</footer>
+<script>
+const SCENES = [
+ {act:"ACT 1 - 'Closed on Sundays' vs a confirmed Sunday booking", lines:[
+  ["note","Model: no regular Sunday hours. Also in the model: CONFIRMED booking, Sun Dec 13, 18:00-23:00 (Rao holiday party, 40 guests)."],
+  ["caller","Are you open on Sundays?"],
+  ["naive","naive draft (plain RAG): \"We're closed on Sundays.\""],
+  ["blocked","VALIDATOR BLOCKED: model contains an opening on Sunday 2026-12-13 18:00-23:00 (Rao holiday party) - the claim contradicts an entailed fact."],
+  ["agent","We're usually closed on Sundays, but on Sunday, December 13 we're open from 18:00 to 23:00 (Rao holiday party)."]]},
+ {act:"ACT 2 - Allergen entailment: pine nut -> tree nut -> nut", lines:[
+  ["caller","Is the pesto nut-free?"],
+  ["naive","naive draft: \"Yes, our pesto pasta is nut-free.\""],
+  ["blocked","VALIDATOR BLOCKED: pesto_pasta carries allergen class 'Nut' via pine_nuts (PineNut subclassOf TreeNut subclassOf Nut)."],
+  ["agent","No - our pesto pasta contains nuts according to our records (listed allergens: dairy, gluten, nuts, pine nuts, tree nuts). You could go with the Margherita Pizza or the Grilled Salmon instead."]]},
+ {act:"ACT 3 - Policy check: free cancellation window", lines:[
+  ["caller","Can I cancel my booking for free 2 hours before?"],
+  ["naive","naive draft: \"Yes, you can cancel free of charge 2 hours before.\""],
+  ["blocked","VALIDATOR BLOCKED: policy allows free cancellation only >= 24h before; inside that, fee $25.00."],
+  ["agent","No - free cancellation ends 24 hours before the booking. Cancelling 2 hours before carries a $25.00 fee."]]},
+ {act:"ACT 4 - Booking with cross-check against actual state", lines:[
+  ["caller","Can I book a table for 2 on Saturday Dec 19 at 7:30pm?"],
+  ["note","availability claim checked against hours + capacity + existing bookings; booking written to state; the confirmation claim is then validated against that state - the agent can only SAY a booking that exists."],
+  ["agent","You're all set - a table for 2 on Saturday, December 19 at 19:30. Booking reference booking_3."]]},
+ {act:"ACT 5 - Owner chat: missed calls, then a live update to the SAME model", lines:[
+  ["owner","What calls did I miss today?"],
+  ["agent","Today so far: 5 calls, 1 missed.  18:42 MISSED +1-555-0134 - asked about Friday availability, no voicemail."],
+  ["owner","We're open Sunday Dec 20 from 10am to 2pm for brunch"],
+  ["agent","Done - Sunday, December 20 is now listed open 10:00-14:00 (brunch). The phone agent knows already."],
+  ["note","Same minute, phone channel:"],
+  ["caller","Are you open on Sunday Dec 20?"],
+  ["agent","Yes, we're open on Sunday, December 20 from 10:00 to 14:00."]]},
+ {act:"ACT 6 - Owner tries to close a day that has a confirmed booking", lines:[
+  ["owner","We're closed Saturday Dec 19"],
+  ["blocked","WRITE REJECTED (consistency): ClosureNotice on 2026-12-19 conflicts with confirmed booking 'Mehta' on the same date."],
+  ["agent","I can't do that: a confirmed booking exists on Dec 19. The model stays true; the booking survives."]]},
+];
+const LABELS = {caller:"CALLER", agent:"VERBA", owner:"OWNER"};
+const log = document.getElementById('log');
+let scene = 0, playing = false, timers = [];
+function render(kind, text) {
+  const div = document.createElement('div');
+  if (kind === 'act') { div.className = 'act'; div.textContent = text; }
+  else if (kind === 'note') { div.className = 'note'; div.textContent = text; }
+  else if (kind === 'naive') { div.className = 'naive'; div.textContent = text; }
+  else if (kind === 'blocked') { div.className = 'blocked'; div.textContent = text; }
+  else { div.className = kind; div.textContent = (LABELS[kind]||'') + '  ' + text; }
+  log.appendChild(div); div.scrollIntoView({block:'end'});
+}
+function playScene(i) {
+  if (i >= SCENES.length) return;
+  render('act', SCENES[i].act);
+  SCENES[i].lines.forEach(([k, t], j) =>
+    timers.push(setTimeout(() => render(k, t), 500 * (j + 1))));
+  if (playing) timers.push(setTimeout(() => playScene(i + 1), 500 * (SCENES[i].lines.length + 1)));
+}
+document.getElementById('next').onclick = () => {
+  if (scene >= SCENES.length) return;
+  playing = false; playScene(scene++); 
+};
+document.getElementById('all').onclick = () => {
+  if (scene >= SCENES.length) return;
+  playing = true; playScene(scene++);
+};
+document.getElementById('reset').onclick = () => {
+  timers.forEach(clearTimeout); timers = []; log.innerHTML = ''; scene = 0; playing = false;
+};
+</script>
+</body>
+</html>
